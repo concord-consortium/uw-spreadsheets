@@ -15,7 +15,7 @@ var loadKey = function (callback) {
 };
 
 var getSettings = function (key, settingsSpreadsheetId, teacherId, callback) {
-  var requiredSettings = ['reportUrl'];
+  var requiredSettings = ['dataUrl', 'bearerToken'];
 
   // pull google settings spreadsheet
   var settingsSheet = new GoogleSpreadsheet(settingsSpreadsheetId);
@@ -64,7 +64,7 @@ var getSettings = function (key, settingsSpreadsheetId, teacherId, callback) {
 
           // check settings
           requiredSettings.forEach(function (setting) {
-            if (!settings.hasOwnProperty(setting)) {
+            if (!settings.hasOwnProperty(setting) || (settings[setting].length == 0)) {
               callback('Missing required setting: ' + setting, settings);
             }
           });
@@ -83,29 +83,33 @@ var getSettings = function (key, settingsSpreadsheetId, teacherId, callback) {
 };
 
 var read = function (key, settings, callback) {
-  return callback(null, []);
+  var url = settings.dataUrl + '?' + settings.teachers.map(function (teacher) { return 'teacher_id[]=' + teacher.id }).join('&');
 
-  var url = settings.reportUrl + '?teachers=' + settings.teachers.map(function (teacher) { return teacher.id }).join(',');
-
-  request(url, function (err, response, body) {
+  request(url, {auth: {bearer: settings.bearerToken}}, function (err, response, body) {
     if (err) { return callback(err.code + ' ' + url); }
     if (response.statusCode != 200) { return callback(response.statusCode + ' ' + url); }
     if (!body || (body.length == 0)) { return callback('NO DATA! ' + url); }
-    callback(null, body);
+    try {
+      parsedBody = JSON.parse(body);
+    }
+    catch (e) {
+      return callback('Unable to parse student data at ' + url + ': ' + e.message);
+    }
+    callback(null, parsedBody);
   });
 };
 
 var loadTeacherSheets = function (key, settings, callback) {
-  _loadTeacherSheets(settings.teachers.slice(), {}, callback);
+  _loadTeacherSheets(key, settings.teachers.slice(), {}, callback);
 };
-var _loadTeacherSheets = function (teachers, teacherSheets, callback) {
+var _loadTeacherSheets = function (key, teachers, teacherSheets, callback) {
   if (teachers.length == 0) {
     return callback(null, teacherSheets);
   }
   var teacher = teachers.shift();
       teacherSheet = new GoogleSpreadsheet(teacher.fileId);
 
-  teacherSheet.useServiceAccountAuth({client_email: key.client_email, private_key: key.private_key}, function (err) {
+  teacherSheet.useServiceAccountAuth(key, function (err) {
     if (err) { return callback(err); }
     teacherSheet.getInfo(function(err, sheetInfo)  {
       if (err) { return callback(err); }
@@ -114,10 +118,10 @@ var _loadTeacherSheets = function (teachers, teacherSheets, callback) {
         worksheet: sheetInfo.worksheets[0],
         startingCells: null
       };
-      teacherSheets[teacher.id].worksheets.getCells(function (err, cells) {
+      teacherSheets[teacher.id].worksheet.getCells(function (err, cells) {
         if (err) { return callback(err, teacherSheets); }
         teacherSheets[teacher.id].startingCells = cells;
-        _loadTeacherSheets(teachers, teacherSheets, callback);
+        _loadTeacherSheets(key, teachers, teacherSheets, callback);
       });
     });
   });

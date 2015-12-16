@@ -2,17 +2,13 @@ var pushPull = require('./push-pull.js'),
     program = require('commander'),
     settingsSpreadsheetIdValue = null;
 
-var showError = function (message) {
+var error = function (message) {
   console.error(message);
   process.exit(1);
 };
 
 var log = function (message) {
   console.log(message);
-};
-
-var dir = function (data) {
-  console.dir(data);
 };
 
 program
@@ -28,14 +24,14 @@ program
 
 // get the settings file id
 if (!settingsSpreadsheetIdValue) {
-  return showError('Missing <settingsSpreadsheetId> parameter');
+  return error('Missing <settingsSpreadsheetId> parameter');
 }
 
 pushPull.loadKey(function (err, key) {
-  if (err) { return showError(err); }
+  if (err) { return error(err); }
 
   pushPull.getSettings(key, settingsSpreadsheetIdValue, program.teacherId, function (err, settings) {
-    if (err) { return showError(err); }
+    if (err) { return error(err); }
 
     if (program.check) {
       log('Settings are ok!');
@@ -43,10 +39,10 @@ pushPull.loadKey(function (err, key) {
     }
 
     pushPull.read(key, settings, function (err, portalData) {
-      if (err) { return showError(err); }
+      if (err) { return error(err); }
 
       if (program.read) {
-        dir(portalData);
+        log(JSON.stringify(portalData, null, 2));
         return;
       }
 
@@ -54,7 +50,7 @@ pushPull.loadKey(function (err, key) {
         if (err) { return done(500, err, result); }
 
         pushPull.write(key, settings, portalData, teacherSheets, function (err) {
-          if (err) { return showError(err); }
+          if (err) { return error(err); }
         });
       });
     });
