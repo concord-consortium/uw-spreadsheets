@@ -1,0 +1,19 @@
+{
+  "name": "uw-spreadsheets",
+  "version": "1.0.0",
+  "description": "UW Spreadsheets Generator",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": "4.2.2"
+  },
+  "dependencies": {
+    "commander": "^2.9.0",
+    "google-spreadsheet": "^1.0.1",
+    "request": "^2.67.0"
+  }
+}
