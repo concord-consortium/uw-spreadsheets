@@ -113,37 +113,164 @@ var _loadTeacherSheets = function (key, teachers, teacherSheets, callback) {
     if (err) { return callback(err); }
     teacherSheet.getInfo(function(err, sheetInfo)  {
       if (err) { return callback(err); }
-      teacherSheets[teacher.id] = {
-        info: sheetInfo,
-        worksheet: sheetInfo.worksheets[0],
-        startingCells: null
-      };
-      teacherSheets[teacher.id].worksheet.getCells(function (err, cells) {
+      _loadTeacherWorksheets(sheetInfo.worksheets.slice(), [], function (err, worksheets) {
         if (err) { return callback(err, teacherSheets); }
-        teacherSheets[teacher.id].startingCells = cells;
+        teacherSheets[teacher.id] = {
+          info: sheetInfo,
+          worksheets: worksheets
+        };
         _loadTeacherSheets(key, teachers, teacherSheets, callback);
       });
     });
   });
 };
+var _loadTeacherWorksheets = function (worksheets, results, callback) {
+  if (worksheets.length == 0) {
+    callback(null, results);
+  }
+  else {
+    var worksheet = worksheets.shift();
+    worksheet.getCells(function (err, cells) {
+      if (err) { return callback(err); }
+
+      var matrix = {},
+          headers = {},
+          headerIndexes = {},
+          rows = {},
+          row, key, hash;
+
+      cells.forEach(function (cell) {
+        var row;
+        if (cell.row == 1) {
+          headers[cell.value] = cell;
+          headerIndexes[cell.col] = cell;
+        }
+        else {
+          row = matrix[cell.row] = matrix[cell.row] || {};
+          row[cell.col] = cell;
+        }
+      });
+      for (var i in matrix) {
+        if (matrix.hasOwnProperty(i)) {
+          row = matrix[i];
+          key = ["activity_id", "teacher_id", "class_id", "student_id", "question_type", "question_id"].map(function (header) { return row[headers[header].col].value; }).join("|");
+          hash = {};
+          for (var j in row) {
+            if (row.hasOwnProperty(j)) {
+              hash[headerIndexes[row[j].col].value] = row[j];
+            }
+          }
+          rows[key] = hash;
+        }
+      }
+      results.push({
+        activityId: matrix[2] && matrix[2][1] ? matrix[2][1].value : null,
+        api: worksheet,
+        rows: rows
+      });
+      _loadTeacherWorksheets(worksheets, results, callback);
+    });
+  }
+};
 
 var write = function (key, settings, portalData, teacherSheets, callback) {
-  //var lines = data.split('\n');
-  //    dataHeader = data.shift();
 
-  /* TODO
+  var rowsToAdd = [],
+      cellsToUpdate = [],
+      key, i, worksheet, firstBlankWorksheet, row;
 
-    1. Read the portalData as csv
-    2. Convert the starting teacher sheet cells into better data structure
-    3. Find all the rows to update
-    4. Find all the rows to insert
-  */
+  for (var teacherId in portalData.teachers) {
+    if (portalData.teachers.hasOwnProperty(teacherId)) {
+      var teacher = portalData.teachers[teacherId];
+      for (var activityId in teacher.activities) {
+        if (teacher.activities.hasOwnProperty(activityId)) {
+          var activity = teacher.activities[activityId];
+          worksheet = null;
+          teacherSheets[teacherId].worksheets.forEach(function (_worksheet) {
+            if (_worksheet.activityId == activityId) {
+              worksheet = _worksheet;
+            }
+            else if (!_worksheet.activityId) {
+              firstBlankWorksheet = _worksheet;
+            }
+          });
+          if (!worksheet) {
+            if (firstBlankWorksheet) {
+              worksheet = firstBlankWorksheet;
+              worksheet.activityId = activityId;
+            }
+            else {
+              return callback("No worksheet found for activity " + activityId + " and no blank worksheets also found");
+            }
+          }
 
-  // split the
-  settings.teachers.forEach(function (teacher) {
-    teacherSheets[teacher.id].worksheet.addRow({foo: (new Date()).toString()}, function (err) {
-      if (err) { console.error(err); }
-    });
+          for (var classId in activity.classes) {
+            if (activity.classes.hasOwnProperty(classId)) {
+              var clazz = activity.classes[classId];
+              for (var studentId in clazz.students) {
+                if (clazz.students.hasOwnProperty(studentId)) {
+                  var student = clazz.students[studentId];
+                  student.questions.forEach(function (question) {
+
+                    question.type = question.type.split('::')[1],
+                    question.answer = question.type == "OpenResponse" ? question.answer : question.answer.map(function (answer) { return answer.answer; }).join('\n');
+                    question.correct = question.hasOwnProperty('is_correct') ? (question.is_correct ? "YES" : "NO") : 'N/A';
+                    question.found_answers = student.found_answers ? "YES" : "NO";
+
+                    key = [activityId, teacherId, classId, studentId, question.type, question.id].join("|");
+
+                    if (worksheet.rows[key]) {
+                      ["found_answers", "prompt", "answer", "correct"].forEach(function (header) {
+                        var value = typeof question[header] == "boolean" ? (question[header] ? "YES" : "NO") : question[header];
+                        if (worksheet.rows[key][header].value != value) {
+                          console.log(key + ' / ' + header + ': ' + worksheet.rows[key][header].value + ' != ' + value);
+                          cellsToUpdate.push({cell: worksheet.rows[key][header], value: value});
+                        }
+                      });
+                    }
+                    else {
+                      rowsToAdd.push({
+                        api: worksheet.api,
+                        data: {
+                          activity_id: activityId,
+                          activity_name: activity.name,
+                          teacher_id: teacherId,
+                          teacher_name: teacher.first_name + ' ' + teacher.last_name,
+                          class_id: classId,
+                          class_name: clazz.name,
+                          student_id: studentId,
+                          student_name: student.first_name + ' ' + student.last_name,
+                          found_answers: question.found_answers,
+                          question_type: question.type,
+                          question_id: question.id,
+                          prompt: question.prompt,
+                          answer: question.answer,
+                          correct: question.correct
+                        }
+                      });
+                    }
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
+    }
+  }
+
+  //console.log(cellsToUpdate.length);
+  //console.log(rowsToAdd.length);
+  //return callback(null);
+
+  cellsToUpdate.forEach(function (item) {
+    console.log("Updating: " + item)
+    item.cell.setValue(item.value);
+  });
+  rowsToAdd.forEach(function (row) {
+    console.log("Adding: " + JSON.stringify(row.data, null, 2));
+    row.api.addRow(row.data);
   });
 
   callback(null);
