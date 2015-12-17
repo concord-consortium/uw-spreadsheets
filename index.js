@@ -46,7 +46,7 @@ var requestListener = function (req, res) {
     pushPull.getSettings(key, query.settingsSpreadsheetId, query.teacherId, function (err, settings) {
       if (err) { return done(500, err); }
 
-      var action = query.action || 'checkSettings',
+      var action = query.action || 'check-settings',
           result = {
             action: action,
             settings: settings
