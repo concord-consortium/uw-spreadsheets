@@ -17,7 +17,9 @@ Once the environment variables are set you can access the web interface with the
 ```
 
 where the spreadsheet id is *1AmmWWX8_3HQ1jafF3si4__7HSvTUR5hdSJ6MqnEpbtM* for the following Google Spreadsheet url:
-```https://docs.google.com/spreadsheets/d/1AmmWWX8_3HQ1jafF3si4__7HSvTUR5hdSJ6MqnEpbtM/edit#gid=0```
+```
+https://docs.google.com/spreadsheets/d/1AmmWWX8_3HQ1jafF3si4__7HSvTUR5hdSJ6MqnEpbtM/edit#gid=0
+```
 
 and the default action is check-settings which will just ensure it has access to the settings spreadsheet and that the settings spreadsheet has a proper format.  The teacherId parameter is optional and when present selects only that teacher in the settings spreadsheet.
 
