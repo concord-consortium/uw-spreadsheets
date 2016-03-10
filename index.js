@@ -40,44 +40,51 @@ var requestListener = function (req, res) {
     return done(400, 'Missing settingsSpreadsheetId query parameter');
   }
 
-  pushPull.loadKey(function (err, key) {
-    if (err) { return done(500, err); }
+  try {
+    var action = query.action || 'check-settings',
+        result = {
+          action: action,
+          settings: {}
+        };
 
-    pushPull.getSettings(key, query.settingsSpreadsheetId, query.teacherId, function (err, settings) {
+    pushPull.loadKey(function (err, key) {
       if (err) { return done(500, err); }
 
-      var action = query.action || 'check-settings',
-          result = {
-            action: action,
-            settings: settings
-          };
+      pushPull.getSettings(key, query.settingsSpreadsheetId, query.teacherId, function (err, settings) {
+        if (err) { return done(500, err); }
 
-      if ((action == 'read') || (action == 'read-and-write')) {
-        pushPull.read(key, settings, function (err, portalData) {
-          if (err) { return done(500, err, result); }
+        result.settings = settings;
 
-          result.portalData = portalData;
+        if ((action == 'read') || (action == 'read-and-write')) {
+          pushPull.read(key, settings, function (err, portalData) {
+            if (err) { return done(500, err, result); }
 
-          if (action == 'read-and-write') {
-            pushPull.loadTeacherSheets(key, settings, function (err, teacherSheets) {
-              if (err) { return done(500, err, result); }
+            result.portalData = portalData;
 
-              pushPull.write(key, settings, portalData, teacherSheets, function (err) {
+            if (action == 'read-and-write') {
+              pushPull.loadTeacherSheets(key, settings, function (err, teacherSheets) {
                 if (err) { return done(500, err, result); }
-                return done(200, null, result);
+
+                pushPull.write(key, settings, portalData, teacherSheets, function (err) {
+                  if (err) { return done(500, err, result); }
+                  return done(200, null, result);
+                });
               });
-            });
-          }
-          else {
-            done(200, null, result);
-          }
-        });
-      }
-      else {
-        done(200, null, result);
-      }
+            }
+            else {
+              done(200, null, result);
+            }
+          });
+        }
+        else {
+          done(200, null, result);
+        }
+      });
     });
-  });
+  }
+  catch (e) {
+    done(500, e.toString(), result)
+  }
 };
 
 http.createServer(requestListener).listen(process.env.PORT || 9000);

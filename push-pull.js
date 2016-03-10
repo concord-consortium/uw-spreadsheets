@@ -188,6 +188,9 @@ var write = function (key, settings, portalData, teacherSheets, callback) {
               for (var studentId in clazz.students) {
                 if (clazz.students.hasOwnProperty(studentId)) {
                   var student = clazz.students[studentId];
+                  if (!student.questions) {
+                    continue;
+                  }
                   student.questions.forEach(function (question) {
 
                     question.type = question.type.split('::')[1],
