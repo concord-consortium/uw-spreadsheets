@@ -50,6 +50,9 @@ var getSettings = function (key, settingsSpreadsheetId, teacherId, callback) {
               id;
 
           cells.forEach(function (cell) {
+            if (cell.col > 2) {
+              return;
+            }
             if (cell.col == 1) {
               id = cell.value;
               hasTeacherId = hasTeacherId || (id == teacherId);
@@ -163,19 +166,18 @@ var write = function (key, settings, portalData, teacherSheets, callback) {
       for (var activityId in teacher.activities) {
         if (teacher.activities.hasOwnProperty(activityId)) {
           var activity = teacher.activities[activityId];
-          worksheet = null;
+          worksheet = firstBlankWorksheet = null;
           teacherSheets[teacherId].worksheets.forEach(function (_worksheet) {
-            if (_worksheet.activityId == activityId) {
+            if ((_worksheet.activityId == activityId) && !worksheet) {
               worksheet = _worksheet;
             }
-            else if (!_worksheet.activityId) {
+            else if (!_worksheet.activityId && !firstBlankWorksheet) {
               firstBlankWorksheet = _worksheet;
             }
           });
           if (!worksheet) {
             if (firstBlankWorksheet) {
               worksheet = firstBlankWorksheet;
-              worksheet.activityId = activityId;
             }
             else {
               return callback("No worksheet found for activity " + activityId + " and no blank worksheets also found");
@@ -193,8 +195,11 @@ var write = function (key, settings, portalData, teacherSheets, callback) {
                   }
                   student.questions.forEach(function (question) {
 
+                    // mark that this spreadsheet is used when we search for the next spreadshet page
+                    worksheet.activityId = activityId;
+
                     question.type = question.type.split('::')[1],
-                    question.answer = question.type == "OpenResponse" ? question.answer : question.answer.map(function (answer) { return answer.answer; }).join('\n');
+                    question.answer = (question.type == "OpenResponse") || !question.answer.map ? question.answer : question.answer.map(function (answer) { return answer.answer; }).join('\n');
                     question.correct = question.hasOwnProperty('is_correct') ? (question.is_correct ? "YES" : "NO") : 'N/A';
                     question.found_answers = student.found_answers ? "YES" : "NO";
 
